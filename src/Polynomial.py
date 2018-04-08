@@ -1,40 +1,62 @@
 
-def get_coeffs_and_degrees_from_dict(received_dict):
-    degrees_list = []
+def get_coeffs_from_dict(received_dict):
     coeffs_list = []
 
-    # TODO for python 2.7
-    for degree, coef in received_dict.items():
-        degrees_list.append(degree)
-        coeffs_list.append(coef)
-    return degrees_list, coeffs_list
+    for coeff in received_dict.values():
+        coeffs_list.append(coeff)
+    return coeffs_list
+
+def replace_coeffs(func):
+    def wrapped(*args, **kwargs):
+        res_string = func(*args, **kwargs)
+        res_string = res_string.replace("1*x", "x")
+        res_string = res_string.replace("-1*x", "-x")
+
+        return res_string
+    return wrapped
+
+def replace_sign(func):
+    def wrapped(*args, **kwargs):
+        res_string = func(*args, **kwargs)
+        res_string = res_string.replace(" + -", " - ")
+
+        return res_string
+    return wrapped
+
+def replace_degrees(func):
+    def wrapped(*args, **kwargs):
+        res_string = func(*args, **kwargs)
+        res_string = res_string.replace("x^1", "x")
+        res_string = res_string.replace("*x^0", "")
+        res_string = res_string.replace("x^0", "1")
+
+        return res_string
+    return wrapped
 
 class Polynomial:
-    def __init__(self, degree_list, coefs_list):
-        if (not isinstance(degree_list, list)) or (not isinstance(coefs_list, list)):
-            raise TypeError('Degrees / coefficients must be list')
+    def __init__(self, coeffs_list):
+        if not isinstance(coeffs_list, list):
+            raise TypeError('Coefficients must be list')
 
-        if (not len(degree_list)) or (not len(coefs_list)):
-            raise TypeError('Degrees / coefficients must be not empty')
+        if not len(coeffs_list):
+            raise TypeError('Coefficients must be not empty')
 
-        if len(degree_list) != len(coefs_list):
-            raise IndexError('The range of degrees and coeefs must be same')
+        self.poly_dict = {0: 0}
+        for key in range(len(coeffs_list)):
+            if coeffs_list[key] != 0:
+                self.poly_dict[key] = coeffs_list[key]
 
-        self.poly_dict = dict()
-        for i in range(len(degree_list)):
-            if coefs_list[i] != 0:
-                if degree_list[i] in self.poly_dict:
-                    self.poly_dict[degree_list[i]] += coefs_list[i]
-                else:
-                    self.poly_dict[degree_list[i]] = coefs_list[i]
-
-        if not len(self.poly_dict):
-            self.poly_dict = {0: 0}
-
+    @replace_coeffs
+    @replace_degrees
+    @replace_sign
     def __str__(self):
-        poly_string = '0'
         if self.poly_dict:
-            poly_string = ' + '.join(f'{coef}*x^{degree}' for degree, coef in self.poly_dict.items())
+            poly_string = ' + '.join('{}*x^{}'.format(coef, degree) for degree, coef in self.poly_dict.items()
+                                     if coef != 0)
+
+        if not poly_string:
+            return '0'
+
         return poly_string
 
     def __add__(self, other):
@@ -43,14 +65,12 @@ class Polynomial:
                     for degree in set(self.poly_dict) | set(other.poly_dict)}
         elif isinstance(other, (float, int)):
             add_poly_dict = self.poly_dict.copy()
-            if 0 in add_poly_dict:
-                add_poly_dict[0] += other
-            else:
-                add_poly_dict[0] = other
+            add_poly_dict[0] += other
         else:
             raise TypeError('Operation type error')
-        add_degrees, add_coeffs = get_coeffs_and_degrees_from_dict(add_poly_dict)
-        return Polynomial(add_degrees, add_coeffs)
+        add_coeffs = get_coeffs_from_dict(add_poly_dict)
+
+        return Polynomial(add_coeffs)
 
     def __radd__(self, other):
         return self + other
@@ -61,32 +81,27 @@ class Polynomial:
                     for degree in set(self.poly_dict) | set(other.poly_dict)}
         elif isinstance(other, (float, int)):
             diff_poly_dict = self.poly_dict.copy()
-            if 0 in diff_poly_dict:
-                diff_poly_dict[0] -= other
-            else:
-                diff_poly_dict[0] = -other
+            diff_poly_dict[0] -= other
         else:
             raise TypeError('Operation type error')
-        diff_degrees, diff_coeffs = get_coeffs_and_degrees_from_dict(diff_poly_dict)
-        return Polynomial(diff_degrees, diff_coeffs)
+        diff_coeffs = get_coeffs_from_dict(diff_poly_dict)
+
+        return Polynomial(diff_coeffs)
 
     def __mul__(self, other):
-        mul_degrees = []
         mul_coeffs = []
 
         if isinstance(other, Polynomial):
-            for self_degree, self_coef in self.poly_dict.items():
-                for other_degree, other_coef in other.poly_dict.items():
+            for self_coef in self.poly_dict.values():
+                for other_coef in other.poly_dict.values():
                     mul_coeffs.append(self_coef * other_coef)
-                    mul_degrees.append(self_degree + other_degree)
         elif isinstance(other, (float, int)):
-            for self_degree, self_coef in self.poly_dict.items():
+            for self_coef in self.poly_dict.values():
                 mul_coeffs.append(self_coef * other)
-                mul_degrees.append(self_degree)
         else:
             raise TypeError('Operation type error')
 
-        return Polynomial(mul_degrees, mul_coeffs)
+        return Polynomial(mul_coeffs)
 
     def __rmul__(self, other):
         return self * other
@@ -96,8 +111,9 @@ class Polynomial:
             if self.poly_dict == other.poly_dict:
                 return True
         elif isinstance(other, (float, int)):
-            if (len(self.poly_dict) == 1) and (self.poly_dict[0] == other):
+            if self.poly_dict[0] == other:
                 return True
+
         return False
 
     def __ne__(self, other):
@@ -105,6 +121,7 @@ class Polynomial:
             if self.poly_dict == other.poly_dict:
                 return False
         elif isinstance(other, (float, int)):
-            if (len(self.poly_dict) == 1) and (self.poly_dict[0] == other):
+            if self.poly_dict[0] == other:
                 return False
+
         return True
